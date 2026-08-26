@@ -1,0 +1,12 @@
+schema_version: 2
+
+checks:
+  envtest:
+    files:
+      envtest.py: file
+      envtest/configuration.py: file
+      envtest/contracts.py: file
+      envtest/suite.py: file
+    path: [uv]
+    commands:
+      help: [python envtest.py --help, 'Run YAML-defined environment checks']
