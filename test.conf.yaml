@@ -6,6 +6,7 @@ checks:
       envtest.py: file
       envtest/configuration.py: file
       envtest/contracts.py: file
+      envtest/publication.py: file
       envtest/suite.py: file
     path: [uv]
     commands:

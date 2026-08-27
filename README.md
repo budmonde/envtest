@@ -24,6 +24,7 @@ uv run envtest.py \
 ```
 
 Use `--check <identifier>` repeatedly to select named groups, `--list-checks` to inspect the resolved contract, and `--verbose` for detailed diagnostics and unexpected tracebacks.
+Use `--suite <identifier>` to name a logical suite for optional result change logging.
 
 ## Consumer integration
 
@@ -81,6 +82,44 @@ Captured command output is used only for regex evaluation and is never printed.
 
 The default renderer prints one color-coded status line for every group, expands failures to the failed primitive names, and ends with an aggregate summary.
 Set `NO_COLOR` to disable terminal colors.
+
+## Result change logs
+
+Envtest can maintain an opt-in JSON Lines history of result state changes.
+Publication activates only when both `ENVTEST_MACHINE_ID` and `ENVTEST_LOG_DIRECTORY` are nonempty.
+When either variable is absent, envtest performs no persistent writes and retains its normal output and exit behavior.
+
+`ENVTEST_MACHINE_ID` supplies a caller-defined machine identifier.
+`ENVTEST_LOG_DIRECTORY` supplies the local publication root.
+Machine and suite identifiers may contain letters, numbers, periods, underscores, and hyphens.
+
+```bash
+export ENVTEST_MACHINE_ID=workstation_linux
+export ENVTEST_LOG_DIRECTORY=/path/to/environment-results
+
+uv run envtest.py \
+  --root /path/to/consumer \
+  --config /path/to/consumer/test.conf.yaml \
+  --suite base
+```
+
+Envtest reads the `origin` remote from `--root` and writes to this layout:
+
+```text
+<log-directory>/<machine-id>/<origin-repository-name>/<suite>.jsonl
+```
+
+The suite name defaults to `default`.
+Each line contains a format version, UTC observation time, producer version, machine, repository, suite, aggregate counts, and per-check outcomes.
+Diagnostics are limited to envtest's structured issues and warnings; captured command output and unexpected tracebacks are not published.
+
+The first completed full-suite run appends an entry.
+Later runs append only when the check set, outcome, issue, or warning state changes.
+Timestamps and durations are recorded but excluded from change detection.
+Targeted `--check` runs do not update the full-suite history.
+
+The log is replaced atomically after a changed entry is serialized successfully.
+A publication failure is reported separately and does not alter the environment test exit status.
 
 ## Self-check
 

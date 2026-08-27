@@ -1,4 +1,3 @@
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,8 +54,6 @@ class CheckGroup:
 
 @dataclass(frozen=True)
 class EnvironmentConfiguration:
-    machine_id: Optional[str]
-    snapshot_directory: Optional[Path]
     checks: Tuple[CheckGroup, ...]
 
     def active_checks(self) -> Tuple[CheckGroup, ...]:
@@ -79,7 +76,7 @@ def load_configuration(config_paths: Iterable[Path]) -> EnvironmentConfiguration
         document = _read_document(path)
         _known_keys(
             document,
-            {"schema_version", "machine", "snapshot", "checks"},
+            {"schema_version", "checks"},
             str(path),
         )
         if document.get("schema_version") != CONFIGURATION_SCHEMA_VERSION:
@@ -94,14 +91,7 @@ def load_configuration(config_paths: Iterable[Path]) -> EnvironmentConfiguration
             _mapping(check, "{}: checks.{}".format(path, identifier))
         merged = _merge(merged, document)
 
-    machine = _mapping(merged.get("machine"), "machine")
-    snapshot = _mapping(merged.get("snapshot"), "snapshot")
-    _known_keys(machine, {"id"}, "machine")
-    _known_keys(snapshot, {"directory"}, "snapshot")
-
     return EnvironmentConfiguration(
-        machine_id=_optional_string(machine, "id", "machine.id"),
-        snapshot_directory=_optional_path(snapshot, "directory", "snapshot.directory"),
         checks=tuple(
             _parse_group(identifier, value)
             for identifier, value in _mapping(merged.get("checks"), "checks").items()
@@ -270,13 +260,6 @@ def _optional_string(
 ) -> Optional[str]:
     value = section.get(key)
     return None if value is None else _nonempty_string(value, name)
-
-
-def _optional_path(
-    section: Mapping[str, Any], key: str, name: str
-) -> Optional[Path]:
-    value = _optional_string(section, key, name)
-    return None if value is None else Path(os.path.expandvars(value)).expanduser()
 
 
 def _merge(left: Dict[str, Any], right: Mapping[str, Any]) -> Dict[str, Any]:

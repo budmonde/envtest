@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from envtest.configuration import ConfigurationError, load_configuration
+from envtest.publication import ResultLogError, append_result_change
 from envtest.suite import print_environment_result, run_environment_checks
 
 
@@ -52,6 +53,12 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Show detailed diagnostics, durations, and unexpected tracebacks.",
     )
+    parser.add_argument(
+        "--suite",
+        default="default",
+        metavar="IDENTIFIER",
+        help="Logical suite name used for optional result change logging.",
+    )
     return parser.parse_args(arguments)
 
 
@@ -77,8 +84,13 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
             print("{} ({})".format(group.identifier, ", ".join(states)))
         return 0
 
-    result = run_environment_checks(configuration, selected, args.root.resolve())
+    root = args.root.resolve()
+    result = run_environment_checks(configuration, selected, root)
     print_environment_result(result, verbose=args.verbose)
+    try:
+        append_result_change(result, root, args.suite, selected)
+    except ResultLogError as error:
+        print("result log error: {}".format(error), file=sys.stderr)
     return 0 if result.successful else 1
 
 
