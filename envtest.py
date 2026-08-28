@@ -14,7 +14,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from envtest.configuration import ConfigurationError, load_configuration
 from envtest.publication import ResultLogError, append_result_change
-from envtest.suite import print_environment_result, run_environment_checks
+from envtest.suite import (
+    print_environment_check,
+    print_environment_summary,
+    run_environment_checks,
+)
 
 
 def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -85,8 +89,13 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         return 0
 
     root = args.root.resolve()
-    result = run_environment_checks(configuration, selected, root)
-    print_environment_result(result, verbose=args.verbose)
+    result = run_environment_checks(
+        configuration,
+        selected,
+        root,
+        lambda check: print_environment_check(check, verbose=args.verbose),
+    )
+    print_environment_summary(result)
     try:
         append_result_change(result, root, args.suite, selected)
     except ResultLogError as error:

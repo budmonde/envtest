@@ -5,7 +5,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, TextIO, Tuple
+from typing import Callable, Iterable, List, Optional, TextIO, Tuple
 
 from envtest.configuration import CheckGroup, EnvironmentConfiguration
 from envtest.contracts import (
@@ -51,6 +51,7 @@ def run_environment_checks(
     configuration: EnvironmentConfiguration,
     selected_identifiers: Iterable[str],
     root: Path,
+    on_check_complete: Optional[Callable[[CheckResult], None]] = None,
 ) -> SuiteResult:
     identifiers = tuple(selected_identifiers)
     groups = (
@@ -59,8 +60,13 @@ def run_environment_checks(
         else configuration.active_checks()
     )
     started = time.perf_counter()
-    checks = tuple(_run_group(group, root) for group in groups)
-    return SuiteResult(checks, time.perf_counter() - started)
+    checks = []
+    for group in groups:
+        check = _run_group(group, root)
+        checks.append(check)
+        if on_check_complete is not None:
+            on_check_complete(check)
+    return SuiteResult(tuple(checks), time.perf_counter() - started)
 
 
 def _run_group(group: CheckGroup, root: Path) -> CheckResult:
@@ -229,15 +235,33 @@ def print_environment_result(
     verbose: bool = False,
     stream: Optional[TextIO] = None,
 ) -> None:
+    for check in result.checks:
+        print_environment_check(check, verbose, stream)
+    print_environment_summary(result, stream)
+
+
+def print_environment_check(
+    check: CheckResult,
+    verbose: bool = False,
+    stream: Optional[TextIO] = None,
+) -> None:
     output = stream or sys.stdout
     color = _uses_color(output)
-    for check in result.checks:
-        _print_check(output, check, color, verbose)
-        if check.warnings:
-            _print_warnings(output, check, color, verbose)
+    _print_check(output, check, color, verbose)
+    if check.warnings:
+        _print_warnings(output, check, color, verbose)
+    output.flush()
+
+
+def print_environment_summary(
+    result: SuiteResult,
+    stream: Optional[TextIO] = None,
+) -> None:
+    output = stream or sys.stdout
+    color = _uses_color(output)
     if result.checks:
         print(file=output)
-    print(_summary(result, color), file=output)
+    print(_summary(result, color), file=output, flush=True)
 
 
 def _print_check(

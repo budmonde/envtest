@@ -80,7 +80,7 @@ Commands and `if` conditions run through Bash on Unix and PowerShell on Windows.
 The child shell inherits the caller environment, does not reload profiles, and runs with `--root` as its working directory.
 Captured command output is used only for regex evaluation and is never printed.
 
-The default renderer prints one color-coded status line for every group, expands failures to the failed primitive names, and ends with an aggregate summary.
+The default renderer prints and flushes one color-coded status line as each group finishes, expands failures to the failed primitive names, and ends with an aggregate summary.
 Set `NO_COLOR` to disable terminal colors.
 
 ## Result change logs
