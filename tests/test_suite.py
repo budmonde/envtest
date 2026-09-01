@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from envtest.configuration import CheckGroup, EnvironmentConfiguration
+from envtest.configuration import CheckGroup, EnvironmentConfiguration, PathCheck
 from envtest.suite import (
     CheckResult,
     print_environment_check,
@@ -24,7 +24,7 @@ class FlushTrackingStream(io.StringIO):
 class SuiteTests(unittest.TestCase):
     def test_reports_each_check_before_starting_the_next_one(self) -> None:
         groups = tuple(
-            CheckGroup(identifier, True, None, (), (), None, ())
+            CheckGroup(identifier, True, None, (), (), (), ())
             for identifier in ("first", "second")
         )
         configuration = EnvironmentConfiguration(groups)
@@ -56,6 +56,31 @@ class SuiteTests(unittest.TestCase):
 
         self.assertEqual(stream.getvalue(), "PASS example\n")
         self.assertEqual(stream.flush_count, 1)
+
+    def test_checks_every_executable_in_a_group(self) -> None:
+        group = CheckGroup(
+            "toolchain",
+            True,
+            None,
+            (),
+            (),
+            (
+                PathCheck("compiler", (), None),
+                PathCheck("formatter", (), None),
+            ),
+            (),
+        )
+
+        with patch(
+            "envtest.suite.path_candidates",
+            side_effect=((Path("/bin/compiler"),), ()),
+        ):
+            result = run_environment_checks(
+                EnvironmentConfiguration((group,)), (), Path.cwd()
+            )
+
+        self.assertEqual(result.checks[0].status, "failed")
+        self.assertEqual(result.checks[0].issues[0].identifier, "formatter")
 
 
 if __name__ == "__main__":

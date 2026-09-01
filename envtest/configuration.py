@@ -6,8 +6,8 @@ from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 import yaml
 
 
-CONFIGURATION_SCHEMA_VERSION = 2
-CHECK_PRIMITIVES = {"links", "files", "path", "commands"}
+CONFIGURATION_SCHEMA_VERSION = 3
+CHECK_PRIMITIVES = {"links", "files", "paths", "commands"}
 
 
 class ConfigurationError(ValueError):
@@ -48,7 +48,7 @@ class CheckGroup:
     condition: Optional[str]
     links: Tuple[LinkCheck, ...]
     files: Tuple[FileCheck, ...]
-    path: Optional[PathCheck]
+    paths: Tuple[PathCheck, ...]
     commands: Tuple[CommandCheck, ...]
 
 
@@ -89,6 +89,7 @@ def load_configuration(config_paths: Iterable[Path]) -> EnvironmentConfiguration
         for identifier, check in checks.items():
             _nonempty_string(identifier, "{}: check identifier".format(path))
             _mapping(check, "{}: checks.{}".format(path, identifier))
+        document = _normalize_paths(document, str(path))
         merged = _merge(merged, document)
 
     return EnvironmentConfiguration(
@@ -121,18 +122,18 @@ def _parse_group(identifier: str, value: Any) -> CheckGroup:
     if type(enabled) is not bool:
         raise ConfigurationError("{}.enabled must be a boolean".format(prefix))
     if not enabled:
-        return CheckGroup(identifier, False, None, (), (), None, ())
+        return CheckGroup(identifier, False, None, (), (), (), ())
 
     condition = _optional_string(group, "if", "{}.if".format(prefix))
     links = _parse_links(group.get("links"), prefix)
     files = _parse_files(group.get("files"), prefix)
-    path = _parse_path(group.get("path"), prefix)
+    paths = _parse_paths(group.get("paths"), prefix)
     commands = _parse_commands(group.get("commands"), prefix)
-    if not links and not files and path is None and not commands:
+    if not links and not files and not paths and not commands:
         raise ConfigurationError(
             "{} must declare at least one nonempty primitive".format(prefix)
         )
-    return CheckGroup(identifier, True, condition, links, files, path, commands)
+    return CheckGroup(identifier, True, condition, links, files, paths, commands)
 
 
 def _parse_links(value: Any, prefix: str) -> Tuple[LinkCheck, ...]:
@@ -159,26 +160,43 @@ def _parse_files(value: Any, prefix: str) -> Tuple[FileCheck, ...]:
     return tuple(parsed)
 
 
-def _parse_path(value: Any, prefix: str) -> Optional[PathCheck]:
-    if value is None:
-        return None
-    name = "{}.path".format(prefix)
-    if isinstance(value, list):
-        if not 1 <= len(value) <= 2:
-            raise ConfigurationError("{} must be a one- or two-item list".format(name))
-        command = _nonempty_string(value[0], "{} command".format(name))
-        locations = _locations(value[1], name) if len(value) == 2 else ()
-        return PathCheck(command, locations, None)
-    if not isinstance(value, dict):
-        raise ConfigurationError("{} must be a list or mapping".format(name))
+def _normalize_paths(document: Dict[str, Any], prefix: str) -> Dict[str, Any]:
+    normalized = dict(document)
+    checks = dict(_mapping(document.get("checks"), "{}: checks".format(prefix)))
+    normalized["checks"] = checks
+    for identifier, value in checks.items():
+        group = dict(_mapping(value, "{}: checks.{}".format(prefix, identifier)))
+        checks[identifier] = group
+        paths = group.get("paths")
+        if not isinstance(paths, list):
+            continue
+        name = "{}: checks.{}.paths".format(prefix, identifier)
+        commands = _string_list(paths, name)
+        if len(commands) != len(set(commands)):
+            raise ConfigurationError("{} must not contain duplicate commands".format(name))
+        group["paths"] = {command: {} for command in commands}
+    return normalized
 
-    _known_keys(value, {"command", "locations", "candidates"}, name)
-    command = _nonempty_string(value.get("command"), "{}.command".format(name))
-    locations = _locations(value.get("locations"), name)
-    candidates = value.get("candidates")
-    if candidates is not None and (type(candidates) is not int or candidates < 1):
-        raise ConfigurationError("{}.candidates must be a positive integer".format(name))
-    return PathCheck(command, locations, candidates)
+
+def _parse_paths(value: Any, prefix: str) -> Tuple[PathCheck, ...]:
+    paths = _mapping(value, "{}.paths".format(prefix))
+    parsed = []
+    for command, value in paths.items():
+        name = "{}.paths.{}".format(prefix, command)
+        executable = _nonempty_string(command, "{} command".format(name))
+        if not isinstance(value, dict):
+            raise ConfigurationError("{} must be a mapping".format(name))
+        _known_keys(value, {"locations", "candidate_count"}, name)
+        locations = _locations(value.get("locations"), name)
+        candidate_count = value.get("candidate_count")
+        if candidate_count is not None and (
+            type(candidate_count) is not int or candidate_count < 1
+        ):
+            raise ConfigurationError(
+                "{}.candidate_count must be a positive integer".format(name)
+            )
+        parsed.append(PathCheck(executable, locations, candidate_count))
+    return tuple(parsed)
 
 
 def _locations(value: Any, prefix: str) -> Tuple[str, ...]:

@@ -49,32 +49,45 @@ Each check group may use four primitives:
 | --- | --- |
 | `links` | Map installed targets to source paths relative to `--root`. |
 | `files` | Map required paths to `file` or `directory`. |
-| `path` | Require a command on `PATH` and optionally constrain its selected location or candidate count. |
+| `paths` | Require executables on `PATH` and optionally constrain their selected locations or candidate counts. |
 | `commands` | Run named native-shell commands and optionally match output with positive or `!`-prefixed negative regular expressions. |
 
 `if` conditionally skips a group when its native-shell command exits nonzero.
 `enabled: false` disables a group through a later configuration overlay.
 
 ```yaml
-schema_version: 2
+schema_version: 3
 
 checks:
   git:
     links:
       "~/.config/git": config/git
-    path: [git]
+    paths: [git]
     commands:
       version: [git --version, git version]
 
   fzf:
-    path: [fzf, "${XDG_DATA_HOME:-$HOME/.local/share}/fzf/bin"]
+    paths:
+      fzf:
+        locations: ["${XDG_DATA_HOME:-$HOME/.local/share}/fzf/bin"]
 
   powershell:
-    path:
-      command: pwsh
-      locations: ["%ProgramFiles%/WindowsApps"]
-      candidates: 2
+    paths:
+      pwsh:
+        locations: ["%ProgramFiles%/WindowsApps"]
+        candidate_count: 2
 ```
+
+Use the list shorthand when a group only needs executable resolution checks:
+
+```yaml
+checks:
+  go:
+    paths: [go, gofmt]
+```
+
+Use the mapping form when an executable needs location or candidate-count constraints.
+Path lists normalize to mappings before configuration overlays merge, so separate configurations can add executables to the same group.
 
 Commands and `if` conditions run through Bash on Unix and PowerShell on Windows.
 The child shell inherits the caller environment, does not reload profiles, and runs with `--root` as its working directory.

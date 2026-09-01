@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, List, Optional, TextIO, Tuple
 
-from envtest.configuration import CheckGroup, EnvironmentConfiguration
+from envtest.configuration import CheckGroup, EnvironmentConfiguration, PathCheck
 from envtest.contracts import (
     command_result,
     expand_path,
@@ -88,7 +88,7 @@ def _run_group(group: CheckGroup, root: Path) -> CheckResult:
     try:
         _check_links(group, root, issues)
         _check_files(group, root, issues)
-        _check_path(group, issues, notices)
+        _check_paths(group, issues, notices)
         _check_commands(group, root, issues)
     except Exception as error:
         return CheckResult(
@@ -143,14 +143,20 @@ def _check_files(
             )
 
 
-def _check_path(
+def _check_paths(
     group: CheckGroup,
     issues: List[CheckIssue],
     notices: List[CheckIssue],
 ) -> None:
-    contract = group.path
-    if contract is None:
-        return
+    for contract in group.paths:
+        _check_path(contract, issues, notices)
+
+
+def _check_path(
+    contract: PathCheck,
+    issues: List[CheckIssue],
+    notices: List[CheckIssue],
+) -> None:
     issue_count = len(issues)
     candidates = path_candidates(contract.command)
     if not candidates:
