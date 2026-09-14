@@ -3,7 +3,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from envtest.configuration import CheckGroup, EnvironmentConfiguration, PathCheck
+from envtest.configuration import (
+    CheckGroup,
+    CommandCheck,
+    EnvironmentConfiguration,
+    PathCheck,
+)
+from envtest.contracts import CommandResult
 from envtest.suite import (
     CheckResult,
     print_environment_check,
@@ -81,6 +87,90 @@ class SuiteTests(unittest.TestCase):
 
         self.assertEqual(result.checks[0].status, "failed")
         self.assertEqual(result.checks[0].issues[0].identifier, "formatter")
+
+    def test_accepts_versions_at_inclusive_constraint_boundaries(self) -> None:
+        group = CheckGroup(
+            "python",
+            True,
+            None,
+            (),
+            (),
+            (),
+            (
+                CommandCheck(
+                    "version",
+                    "python3 --version",
+                    ("^Python", ">=3.9", ">=3.14", "<=3.14.0"),
+                ),
+            ),
+        )
+
+        with patch(
+            "envtest.suite.command_result",
+            return_value=CommandResult(0, "Python 3.14.0\n", ""),
+        ):
+            result = run_environment_checks(
+                EnvironmentConfiguration((group,)), (), Path.cwd()
+            )
+
+        self.assertEqual(result.checks[0].status, "passed")
+
+    def test_reports_versions_outside_constraints(self) -> None:
+        group = CheckGroup(
+            "python",
+            True,
+            None,
+            (),
+            (),
+            (),
+            (
+                CommandCheck(
+                    "version",
+                    "python3 --version",
+                    (">=3.15", "<=3.13"),
+                ),
+            ),
+        )
+
+        with patch(
+            "envtest.suite.command_result",
+            return_value=CommandResult(0, "Python 3.14.0\n", ""),
+        ):
+            result = run_environment_checks(
+                EnvironmentConfiguration((group,)), (), Path.cwd()
+            )
+
+        self.assertEqual(result.checks[0].status, "failed")
+        self.assertEqual(
+            result.checks[0].issues[0].diagnostic,
+            "version 3.14.0 did not satisfy constraint '>=3.15'; "
+            "version 3.14.0 did not satisfy constraint '<=3.13'",
+        )
+
+    def test_reports_missing_version_for_constraint(self) -> None:
+        group = CheckGroup(
+            "tool",
+            True,
+            None,
+            (),
+            (),
+            (),
+            (CommandCheck("version", "tool --version", (">=1.0",)),),
+        )
+
+        with patch(
+            "envtest.suite.command_result",
+            return_value=CommandResult(0, "development build\n", ""),
+        ):
+            result = run_environment_checks(
+                EnvironmentConfiguration((group,)), (), Path.cwd()
+            )
+
+        self.assertEqual(result.checks[0].status, "failed")
+        self.assertIn(
+            "did not find a numeric version",
+            result.checks[0].issues[0].diagnostic,
+        )
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from envtest.contracts import (
     shell_command_result,
     source_path,
 )
+from envtest.versioning import find_version, parse_version_constraint, satisfies
 
 
 @dataclass(frozen=True)
@@ -224,6 +225,22 @@ def _check_commands(
         output = "{}\n{}".format(result.stdout, result.stderr)
         problems = []
         for pattern in contract.patterns:
+            constraint = parse_version_constraint(pattern)
+            if constraint is not None:
+                found = find_version(output)
+                if found is None:
+                    problems.append(
+                        "did not find a numeric version for constraint {!r}".format(
+                            pattern
+                        )
+                    )
+                elif not satisfies(found[1], constraint):
+                    problems.append(
+                        "version {} did not satisfy constraint {!r}".format(
+                            found[0], pattern
+                        )
+                    )
+                continue
             expression = pattern[1:] if pattern.startswith("!") else pattern
             matched = re.search(expression, output) is not None
             if pattern.startswith("!") and matched:

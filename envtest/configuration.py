@@ -5,6 +5,8 @@ from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 import yaml
 
+from envtest.versioning import parse_version_constraint
+
 
 CONFIGURATION_SCHEMA_VERSION = 3
 CHECK_PRIMITIVES = {"links", "files", "paths", "commands"}
@@ -235,6 +237,14 @@ def _parse_commands(value: Any, prefix: str) -> Tuple[CommandCheck, ...]:
 
 def _validate_patterns(patterns: Tuple[str, ...], name: str) -> None:
     for pattern in patterns:
+        try:
+            constraint = parse_version_constraint(pattern)
+        except ValueError as error:
+            raise ConfigurationError(
+                "{} has an invalid version constraint: {}".format(name, error)
+            ) from error
+        if constraint is not None:
+            continue
         expression = pattern[1:] if pattern.startswith("!") else pattern
         if not expression:
             raise ConfigurationError("{} regex pattern must not be empty".format(name))

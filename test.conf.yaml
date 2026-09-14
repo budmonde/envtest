@@ -8,6 +8,8 @@ checks:
       envtest/contracts.py: file
       envtest/publication.py: file
       envtest/suite.py: file
+      envtest/versioning.py: file
     paths: [uv]
     commands:
       help: [python envtest.py --help, 'Run YAML-defined environment checks']
+      runtime: [python --version, '>=3.8']

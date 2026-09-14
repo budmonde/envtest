@@ -50,7 +50,7 @@ Each check group may use four primitives:
 | `links` | Map installed targets to source paths relative to `--root`. |
 | `files` | Map required paths to `file` or `directory`. |
 | `paths` | Require executables on `PATH` and optionally constrain their selected locations or candidate counts. |
-| `commands` | Run named native-shell commands and optionally match output with positive or `!`-prefixed negative regular expressions. |
+| `commands` | Run named native-shell commands and optionally check output with regular expressions or inclusive numeric version constraints. |
 
 `if` conditionally skips a group when its native-shell command exits nonzero.
 `enabled: false` disables a group through a later configuration overlay.
@@ -64,7 +64,7 @@ checks:
       "~/.config/git": config/git
     paths: [git]
     commands:
-      version: [git --version, git version]
+      version: [git --version, git version, '>=2.40', '<=3']
 
   fzf:
     paths:
@@ -91,7 +91,12 @@ Path lists normalize to mappings before configuration overlays merge, so separat
 
 Commands and `if` conditions run through Bash on Unix and PowerShell on Windows.
 The child shell inherits the caller environment, does not reload profiles, and runs with `--root` as its working directory.
-Captured command output is used only for regex evaluation and is never printed.
+Captured command output is used only for contract evaluation and is never printed.
+
+Command patterns beginning with `>=` or `<=` are inclusive version constraints.
+Envtest compares the first numeric version in the captured output by integer segments and treats omitted trailing segments as zero, so `3.14` and `3.14.0` are equal.
+Quote constraints in YAML, as in `'>=3.8'` or `'<=4.0'`.
+Other command patterns retain their existing positive-regex and `!`-prefixed negative-regex behavior.
 
 The default renderer prints and flushes one color-coded status line as each group finishes, expands failures to the failed primitive names, and ends with an aggregate summary.
 Set `NO_COLOR` to disable terminal colors.

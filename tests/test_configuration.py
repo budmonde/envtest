@@ -102,6 +102,36 @@ checks:
 """
             )
 
+    def test_accepts_command_version_constraints(self) -> None:
+        configuration = self.load(
+            """\
+schema_version: 3
+checks:
+  python:
+    commands:
+      version: [python3 --version, '>=3.8', '<=3.14.2']
+"""
+        )
+
+        self.assertEqual(
+            configuration.checks[0].commands[0].patterns,
+            (">=3.8", "<=3.14.2"),
+        )
+
+    def test_rejects_invalid_command_version_constraints(self) -> None:
+        with self.assertRaisesRegex(
+            ConfigurationError, "invalid version constraint"
+        ):
+            self.load(
+                """\
+schema_version: 3
+checks:
+  python:
+    commands:
+      version: [python3 --version, '>=three']
+"""
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
